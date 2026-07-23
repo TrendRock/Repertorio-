@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repertório Interativo</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background-color: #121212; color: #ffffff; padding: 15px; max-width: 800px; margin: 0 auto; padding-bottom: 300px; }
+        
+        /* Controles do Topo */
+        .painel-controles { background: #1e1e1e; padding: 12px; border-radius: 8px; border: 1px solid #333; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .input-busca { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: #fff; font-size: 1.1rem; }
+        
+        .btn { width: 100%; padding: 12px; border: 1px solid #444; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 1rem; text-align: center; }
+        /* Botão Nova Música em tom cinza discreto */
+        .btn-add { background: #2a2a2a; color: #cccccc; }
+        .btn-add:hover { background: #333333; color: #ffffff; }
+
+        /* Formulário de Adicionar/Editar */
+        .form-modal { display: none; background: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #444; margin-bottom: 15px; }
+        .form-modal h2 { font-size: 1.3rem; color: #ffffff; margin-bottom: 10px; }
+        .form-modal input, .form-modal textarea { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: #fff; font-size: 1rem; }
+        .form-modal textarea { height: 180px; font-family: monospace; resize: vertical; text-align: center; font-size: 1.2rem; }
+
+        /* Lista de Músicas */
+        .lista-musicas { display: flex; flex-direction: column; gap: 12px; }
+        details { background-color: #1e1e1e; border-radius: 8px; border: 1px solid #333; overflow: hidden; scroll-margin-top: 15px; }
+        
+        summary { padding: 16px; font-size: 1.2rem; font-weight: bold; color: #ffffff; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+        summary:hover { background-color: #2a2a2a; }
+        
+        .titulo-texto { flex-grow: 1; }
+        
+        /* Ações (Editar primeiro, Mover depois) */
+        .acoes-card { display: flex; gap: 4px; align-items: center; margin-left: 10px; }
+        .btn-ico { background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        
+        /* Botões de Mover (Menores) */
+        .btn-ico-mover { 
+            font-size: 0.75rem; 
+            padding: 6px 8px; 
+            color: #aaa;
+        }
+
+        .btn-ico:hover { background: #3a3a3a; color: #00e676; }
+
+        /* Cifra Centralizada e com Fonte Aumentada */
+        pre { 
+            padding: 20px 15px; 
+            background-color: #181818; 
+            font-family: monospace; 
+            font-size: 2rem; 
+            line-height: 1.6; 
+            white-space: pre-wrap; 
+            color: #e0e0e0; 
+            border-top: 1px solid #333; 
+            text-align: center; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="painel-controles">
+        <input type="text" id="inputBusca" class="input-busca" placeholder="🔍 Pesquisar música..." oninput="filtrarMusicas()">
+        <button class="btn btn-add" onclick="abrirFormulario()">➕ Nova Música</button>
+    </div>
+
+    <div class="form-modal" id="formModal">
+        <h2 id="formTitulo">➕ Nova Música</h2>
+        <input type="text" id="formNome" placeholder="Nome da Música / Banda">
+        <textarea id="formCifra" placeholder="Digite a cifra, notas ou acordes aqui..."></textarea>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-add" style="background: #333; color: #fff;" onclick="salvarMusica()">Salvar</button>
+            <button class="btn" style="background: #222; color: #888;" onclick="fecharFormulario()">Cancelar</button>
+        </div>
+    </div>
+
+    <div class="lista-musicas" id="listaMusicas"></div>
+
+    <script>
+        const repertorioPadrao = [
+            { titulo: "Come Together", cifra: "Ataque\nFA-RE\n\nDm  Am\nSI, LA, SOL\n\nLA\n\nBEAT IT\n\nDm, C\nLA#  Dm - C\n\nSTG - D5" },
+            { titulo: "Whiskey In The Jar", cifra: "Intro - D, F\n\nBase - F – D – A#, F\n\nC, LA#, F" },
+            { titulo: "Decode - Paramore", cifra: "Frase: La\n\nRefrão: F, D, LA, MI" },
+            { titulo: "Admirável Chip Novo", cifra: "D --\nDesce\n\nFA, MI, RE, DO\n\nNão senhor\n\nSOL" },
+            { titulo: "Dias Atrás", cifra: "SI, F#, MI\n\nMI, SOL#" },
+            { titulo: "Mulher de Fases", cifra: "INTRO\n\nG, C 2X ----- MI\n\nG, D, C, E, A, C – 2X\n\nC, A, E, G, C, G, D\n\nRefrão\n\nG, C, G, D, C, E\nA, C\nAtaque\nSOL - DO\n\nEm, SOL\nEm, LA\n\nSTG" },
+            { titulo: "Outro Lugar", cifra: "G, C, G, D, E\nA, C\n\nB, A, G, D\n\nGm, F#m, Mim, RE\n\nFALADA\n\nStg\n\nBm, G, D, A ----- G" },
+            { titulo: "Do Seu Lado", cifra: "D, Am, C, G-D\norgão - C G D\n\nstg-Em,G,D\n\nREFRAO\n\nD, Am, C, D\nD,Am,C,G,D" },
+            { titulo: "Learn to Fly - Foo Fighters", cifra: "SI, FA# – MI\n\nSOL, LA" },
+            { titulo: "Smells Like Teen Spirit - Nirvana", cifra: "FA, LA#, SOL#, C#\n\nHE\n\nF, FA#,\n\nFA, LA#, SOL#" },
+            { titulo: "Otherside - Red Hot Chili Peppers", cifra: "COMEÇA FRASE MI\n\nAm, Em -- G, A\n\nEm, DO\n\nSOLO\nAm, F, C, G" },
+            { titulo: "Like a Stone", cifra: "SOL, LA#, FA\n\nRE#, SOL, FA, SOL – RE\n\nVIOLÃO\nRE#m, LA#m, RE\nRE#m, DO\n\nFrase começa – 4°corda" },
+            { titulo: "Bring Me To Life", cifra: "RE\n\nRE, FA, DO, RE\nLA#, DO, RE - 2X\n\nSOL, FA, MI, RE" },
+            { titulo: "Um Minuto Para o Fim do Mundo", cifra: "LAm\n\nLAm, DO, SOL, FA\n\n2° parte\n- LA, FA, DO, SOL\n\nDO, SOL, FA\n\nRIFF\n-- SOL\n----\nC, SOL, LA, FA" },
+            { titulo: "Na Sua Estante", cifra: "PIANO\nD, Bm\nA\nG, A, D, SI\nG, A, B\nStg subida - RE LA\nSTG - G , A , B" },
+            { titulo: "A Cera", cifra: "ETRIADE\nDm, C -- SOL#\nDm, C, LA#, Gm" },
+            { titulo: "Natasha", cifra: "D , G,Em, A\nBm, E ----- A\n2X\nG A Bm --- A\nREFRAO\nD , G, Em, A" },
+            { titulo: "Carla", cifra: "Bm, Em, A\nRefrão\nD, G, Em, A\nFinal refrao\nBm, Em, A\nSolo\nC, D – 2X\nC, Em, C, A\nSTG - Bm, Em, A" },
+            { titulo: "A Mais Pedida", cifra: "RADINHO \nINTRO \nDO – SOL – LAm -- RE\nC , F, D, A , G\nC, F, A , G\nSEIO E SOLO \nC, Dm, F, Am, Dm – G\nREFRAO \nC , F – 2X ---- D , G\nVOZ MULHER\nC, F,A (LA, SOL)\nD (LA, SOL)" },
+            { titulo: "Quando o Sol Se For", cifra: "SOL, LA, SI, RE\nSI, RE" },
+            { titulo: "Lonely Day", cifra: "A, F, C, E\nFA, MI, SOL, LA - 2X\nFA, SI\nSolo\nA, F, C, E" },
+            { titulo: "Zombie - The Cranberries", cifra: "Mim , C , SOL , RE\nMI, DO\nfrase guitar começo\nDO – RE" },
+            { titulo: "Locked Out Of Heaven - Bruno Mars", cifra: "C , G# , F\nTECLADO\nC , G# , F\nRE# - LA#\nSOL#, FA, RE#, LA#\nFINAL \nLUGAR DE RE# --- SOL" },
+            { titulo: "Do I Wanna Know - Arctic Monkeys", cifra: "FRASE COMEÇA EM\nFA" },
+            { titulo: "Be Yourself - Audioslave", cifra: "Bm, D, G, Em\nDEPOIS DO SOLO\nSOL, LA, SI, FA#\nFECHA - SOL" },
+            { titulo: "What I've Done - Linkin Park", cifra: "PIANO\nDECORAR / LEMBRAR FRASE\nSOL, DO, DO#\nSOL, LA#, FA, DO\nREm, FA\nSubida DO , RE , MI , FA ,SOL" },
+            { titulo: "Que País É Esse", cifra: "MI, DO, RE" },
+            { titulo: "Tempo Perdido", cifra: "C, Am, Bm, Em\nBm, Em" },
+            { titulo: "It's My Life - Bon Jovi", cifra: "DO - LA\nDO, SOL#, RE# LA#\nDO, SOL#, LA# --- DO\nSOLO\nSOL# , LA#, C, F" },
+            { titulo: "Rebirth", cifra: "LA, DO#\nLA, SI, DO#, SOL#\nLA, SI, \nLA, SI, DO#\nLA, SI, \nLA, SI, RE# \n\nFA, RE#, SOL#, DO\nFA#, RE#, DO" },
+            { titulo: "Song 2", cifra: "uhuu\nSOL# segurar" },
+            { titulo: "Malandragem", cifra: "C#m , B , F#M , C#m ---\nB , A\nREFRAO\nC#m , B, E, F# - 2X\nA, B, C#m\nBOBEIRA B, F#,C# REFRAO\nEu ando\nF#, E, B, C#m, A , C#m" },
+            { titulo: "Beggin", cifra: "Bm, Em, C#m, F#" }
+        ];
+
+        let repertorio = [];
+        let indexEditando = null;
+
+        function carregarDados() {
+            const dadosSalvos = localStorage.getItem('meuRepertorioBanda');
+            if (dadosSalvos) {
+                try { repertorio = JSON.parse(dadosSalvos); } catch(e) { repertorio = repertorioPadrao; }
+            } else {
+                repertorio = repertorioPadrao;
+            }
+            renderizar();
+        }
+
+        function salvarDados() {
+            localStorage.setItem('meuRepertorioBanda', JSON.stringify(repertorio));
+        }
+
+        function renderizar(filtro = '') {
+            const container = document.getElementById('listaMusicas');
+            container.innerHTML = '';
+
+            repertorio.forEach((item, index) => {
+                if (filtro && !item.titulo.toLowerCase().includes(filtro.toLowerCase())) return;
+
+                const card = document.createElement('details');
+                
+                card.addEventListener('toggle', function() {
+                    if (this.open) {
+                        const todosDetails = document.querySelectorAll('details');
+                        todosDetails.forEach(d => {
+                            if (d !== this) d.removeAttribute('open');
+                        });
+
+                        setTimeout(() => {
+                            this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 100);
+                    }
+                });
+
+                const desabilitarMover = filtro !== '';
+
+                card.innerHTML = `
+                    <summary>
+                        <span class="titulo-texto">${index + 1}. ${item.titulo}</span>
+                        <div class="acoes-card" onclick="event.stopPropagation()">
+                            <button class="btn-ico" title="Editar" onclick="prepararEdicao(${index})">✏️</button>
+                            ${!desabilitarMover ? `<button class="btn-ico btn-ico-mover" title="Subir" onclick="moverMusica(${index}, -1)">▲</button>` : ''}
+                            ${!desabilitarMover ? `<button class="btn-ico btn-ico-mover" title="Descer" onclick="moverMusica(${index}, 1)">▼</button>` : ''}
+                        </div>
+                    </summary>
+                    <pre>${item.cifra}</pre>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function moverMusica(index, direcao) {
+            const novoIndex = index + direcao;
+            if (novoIndex < 0 || novoIndex >= repertorio.length) return;
+
+            const temp = repertorio[index];
+            repertorio[index] = repertorio[novoIndex];
+            repertorio[novoIndex] = temp;
+
+            salvarDados();
+            renderizar(document.getElementById('inputBusca').value);
+        }
+
+        function filtrarMusicas() {
+            const texto = document.getElementById('inputBusca').value;
+            renderizar(texto);
+        }
+
+        function abrirFormulario() {
+            indexEditando = null;
+            document.getElementById('formTitulo').innerText = '➕ Nova Música';
+            document.getElementById('formNome').value = '';
+            document.getElementById('formCifra').value = '';
+            document.getElementById('formModal').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function fecharFormulario() {
+            document.getElementById('formModal').style.display = 'none';
+        }
+
+        function salvarMusica() {
+            const nome = document.getElementById('formNome').value.trim();
+            const cifra = document.getElementById('formCifra').value;
+
+            if (!nome) { alert('Digite o nome da música!'); return; }
+
+            if (indexEditando !== null) {
+                repertorio[indexEditando] = { titulo: nome, cifra: cifra };
+            } else {
+                repertorio.unshift({ titulo: nome, cifra: cifra });
+            }
+
+            salvarDados();
+            renderizar();
+            fecharFormulario();
+        }
+
+        function prepararEdicao(index) {
+            indexEditando = index;
+            document.getElementById('formTitulo').innerText = '✏️ Editando Música';
+            document.getElementById('formNome').value = repertorio[index].titulo;
+            document.getElementById('formCifra').value = repertorio[index].cifra;
+            document.getElementById('formModal').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        carregarDados();
+
+        // Registro do Service Worker para suporte a PWA Offline
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registrado!'))
+                .catch(err => console.log('Erro ao registrar Service Worker:', err));
+        }
+    </script>
+</body>
+</html>
